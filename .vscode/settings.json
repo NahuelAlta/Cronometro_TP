@@ -5,9 +5,10 @@
     "idf.openOcdConfigs": [
         "board/esp32c3-builtin.cfg"
     ],
-    "idf.portWin": "COM9",
+    "idf.portWin": "COM5",
     "idf.toolsPathWin": "c:\\Users\\Bangho\\ESP32_Espressif\\.espressif",
     "idf.customExtraVars": {
         "IDF_TARGET": "esp32c3"
-    }
+    },
+    "idf.flashType": "UART"
 }

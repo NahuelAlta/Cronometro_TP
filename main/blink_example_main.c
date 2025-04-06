@@ -27,20 +27,15 @@
 uint32_t Minutos = 0;
 uint32_t Segundos = 0;
 uint32_t Decimas = 0;
-
+uint32_t Conteo = 0;
 
 uint8_t Estado_global = Parado;
-uint8_t Cambio_segundos = 0;
-uint8_t Cambio_decimas = 0;
 
 typedef struct Cronometro_s {
-    uint32_t Delay; 
-    uint32_t *puntero; 
-    uint8_t Tope;
     SemaphoreHandle_t Semaforo;
-    SemaphoreHandle_t Semaforo_uart;
-    uint8_t *Cambio;
-    panel_t panel_lcd;
+    panel_t panel_lcd_dec;
+    panel_t panel_lcd_min;
+    panel_t panel_lcd_seg;
 }* Cronometro_t;
 
 static void Parpadeo_led_verde (void *parameters){
@@ -59,40 +54,50 @@ static void Parpadeo_led_verde (void *parameters){
 }
 
 static void Chequeo_botones (void *parameters){
-
+    Cronometro_t parametros = (Cronometro_t) parameters;
     while(1){
         if (gpio_get_level(BOTON_TC0)==0){
-            vTaskDelay(100/portTICK_PERIOD_MS);
+            vTaskDelay(50/portTICK_PERIOD_MS);
             if (gpio_get_level(BOTON_TC0)==0 ){
+                xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
                 switch(Estado_global){
                     case Parado:
-                    gpio_set_level(LED_ROJO,0);
                     Estado_global = Corriendo;
+                    xSemaphoreGive(parametros->Semaforo);
+                    gpio_set_level(LED_ROJO,0);
                     break;
                     case Corriendo:
                     Estado_global = Parado;
+                    xSemaphoreGive(parametros->Semaforo);
                     gpio_set_level(LED_VERDE,0);
                     gpio_set_level(LED_ROJO,1);
                     break;                    
                 }
             }
-            while(!gpio_get_level(BOTON_TC0)){}
+            while(!gpio_get_level(BOTON_TC0)){} //esto con la idea de que si uno
+            //mantiene apretado el botón no vuelva a entrar a la interrupción. Como
+            //todavía NO (NO) vimos eventos, creo que es la mejor forma de evitar ello :). 
+            vTaskDelay(50/portTICK_PERIOD_MS);
         }
         else if (gpio_get_level(BOTON_TC1)==0){
-            vTaskDelay(100/portTICK_PERIOD_MS);
+            vTaskDelay(50/portTICK_PERIOD_MS);
+            xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
             if ((gpio_get_level(BOTON_TC1)==0) && Estado_global==Parado){
                 Minutos = 0;
                 Segundos = 0;
                 Decimas = 0;
+                Conteo = 0;
             }
+            xSemaphoreGive(parametros->Semaforo);
             while(!gpio_get_level(BOTON_TC1)){}
+            vTaskDelay(50/portTICK_PERIOD_MS);
         }
         else if (gpio_get_level(BOTON_TC2)==0){
-            vTaskDelay(100/portTICK_PERIOD_MS);
             if (gpio_get_level(BOTON_TC2)==0){
                 //printf("Minutos: %u/nSegundos: %u/nDecimas: %u",Minutos,Segundos,Decimas);
             }
             while(!gpio_get_level(BOTON_TC2)){}
+            vTaskDelay(50/portTICK_PERIOD_MS);
         }
         vTaskDelay(100/portTICK_PERIOD_MS);
     }
@@ -100,88 +105,77 @@ static void Chequeo_botones (void *parameters){
 
 static void Contador (void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
-    // static TickType_t Tiempo_inicial = 0;
-    // const TickType_t Periodo =  parametros->Delay;
-    // Tiempo_inicial = xTaskGetTickCount();
+    static TickType_t Tiempo_inicial = 0;
+    Tiempo_inicial = xTaskGetTickCount();
     while(1){
-        //Prueba para cambios de github
-
+        xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
         if (Estado_global){
-            vTaskDelay(parametros->Delay/portTICK_PERIOD_MS);
-            xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
-            *(parametros->puntero)+=1;
-            if (*(parametros->puntero)==parametros->Tope){
-                *(parametros->puntero)=0;
-            }
-            *(parametros->Cambio)=1;
+            Conteo+=1;
+            Decimas=Conteo%10;
+            Segundos=Conteo/10;
+            Minutos=Segundos/60;
             xSemaphoreGive(parametros->Semaforo);
-            //vTaskDelayUntil(&Tiempo_inicial,Periodo);
+            vTaskDelayUntil(&Tiempo_inicial,pdMS_TO_TICKS(100));
         }
         else{
-            vTaskDelay(100/portTICK_PERIOD_MS);
+            xSemaphoreGive(parametros->Semaforo);
+            vTaskDelayUntil(&Tiempo_inicial,pdMS_TO_TICKS(100));
         }
-
     }
 }
 
 static void Actualizar_pantalla(void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
-    uint16_t Conteo=0;
+    static uint16_t Decimas_prev=0;
+    static uint16_t Segundos_prev=0;
+    static uint16_t Minutos_prev=0;
     while(1){
-        if(*(parametros->Cambio) & Estado_global){
-            xSemaphoreTake(parametros->Semaforo,parametros->Delay/portTICK_PERIOD_MS);
-            xSemaphoreTake(parametros->Semaforo_uart,portMAX_DELAY);
-            Conteo = *(parametros->puntero);
-            *(parametros->Cambio)=0;
-            xSemaphoreGive(parametros->Semaforo);
-            uint8_t decena= Conteo/10;
-            uint8_t unidad= Conteo%10;
-            
-            DibujarDigito(parametros->panel_lcd, 0, decena);
-            DibujarDigito(parametros->panel_lcd, 1, unidad);
-
-            ILI9341DrawFilledCircle(160, 90, 5, DIGITO_ENCENDIDO);
-            ILI9341DrawFilledCircle(160, 130, 5, DIGITO_ENCENDIDO);
-            xSemaphoreGive(parametros->Semaforo_uart);
+        xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
+        if (Decimas_prev != Decimas){
+            Decimas_prev=Decimas;
+            DibujarDigito(parametros->panel_lcd_dec, 0, Decimas_prev);
         }
+        if (Segundos_prev != Segundos){
+            Segundos_prev=Segundos;
+            uint8_t decena_seg=(Segundos_prev%60)/10;
+            uint8_t unidad_seg=(Segundos_prev%60)%10;
+            DibujarDigito(parametros->panel_lcd_seg, 0, decena_seg);
+            DibujarDigito(parametros->panel_lcd_seg, 1, unidad_seg);
+        }
+        if (Minutos_prev != Minutos){
+            Minutos_prev=Minutos;
+            DibujarDigito(parametros->panel_lcd_min, 0, Minutos_prev);
+        }
+        xSemaphoreGive(parametros->Semaforo);
         vTaskDelay(50/portTICK_PERIOD_MS);
-    }
+        }
+        
+  //  }
 }
 
 void app_main (void){
     // Estos semáforos van a ser necesario cuando necesite actualizar la pantalla
-    SemaphoreHandle_t  Semaforo_seg;
-    SemaphoreHandle_t  Semaforo_dec;
-    SemaphoreHandle_t  UART_Mutex;
-    Semaforo_dec    =xSemaphoreCreateMutex();
-    Semaforo_seg    =xSemaphoreCreateMutex();
-    UART_Mutex      =xSemaphoreCreateMutex();
-
-    // Declaración de la estructura para la task. Una sola tarea se encarga de contar todos los tiempos
-    // tanto decimas, segundos como minutos. 
-    static struct Cronometro_s Control_temporal [] = {
-        {.Delay=60000, .puntero=&Minutos, .Tope=255},
-        {.Delay=1000, .puntero=&Segundos, .Tope=60, .Cambio=&Cambio_segundos},
-        {.Delay=10, .puntero=&Decimas, .Tope=100, .Cambio=&Cambio_decimas},
-    }; 
-    // Asignación de las variables de semáforo a la estructura. Debido a que no son constantes en tiempo
-    // de ejecución, es necesario declararlas de esta manera.     
-    Control_temporal[1].Semaforo=Semaforo_seg;
-    Control_temporal[2].Semaforo=Semaforo_dec;
-    Control_temporal[1].Semaforo_uart=UART_Mutex;
-    Control_temporal[2].Semaforo_uart=UART_Mutex;
-    
+    SemaphoreHandle_t  Semaforo_global; // La idea es que este semaforo represente las variables de minuto,segundo,
+    //décima y el estado global.
+    Semaforo_global    =xSemaphoreCreateMutex();
+    static struct Cronometro_s Control_temporal;  
+    Control_temporal.Semaforo=Semaforo_global;
     ILI9341Init();
     ILI9341Rotate(ILI9341_Landscape_1);
-
-    Control_temporal[1].panel_lcd=CrearPanel(30, 60, 2, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
-    Control_temporal[2].panel_lcd=CrearPanel(170, 60, 2, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
-    DibujarDigito(Control_temporal[1].panel_lcd, 0, 0);
-    DibujarDigito(Control_temporal[1].panel_lcd, 1, 0);
-    DibujarDigito(Control_temporal[2].panel_lcd, 0, 0);
-    DibujarDigito(Control_temporal[2].panel_lcd, 1, 0);
-    ILI9341DrawFilledCircle(160, 90, 5, DIGITO_ENCENDIDO);
-    ILI9341DrawFilledCircle(160, 130, 5, DIGITO_ENCENDIDO);
+    #define TAG "Hola"
+    ESP_LOGI(TAG,"Hasta aca todo bien");
+    Control_temporal.panel_lcd_min=CrearPanel(10, 60, 1, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    ESP_LOGI(TAG,"Panel 1");
+    Control_temporal.panel_lcd_seg=CrearPanel(90, 60, 2, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    ESP_LOGI(TAG,"Panel 2");
+    Control_temporal.panel_lcd_dec=CrearPanel(230, 60, 1, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    ESP_LOGI(TAG,"Hasta aca tambien");
+    DibujarDigito(Control_temporal.panel_lcd_dec, 0, 0);
+    DibujarDigito(Control_temporal.panel_lcd_seg, 0, 0);
+    DibujarDigito(Control_temporal.panel_lcd_seg, 1, 0);
+    DibujarDigito(Control_temporal.panel_lcd_min, 0, 0);
+    ILI9341DrawFilledCircle(80, 150, 5, DIGITO_ENCENDIDO);
+    ILI9341DrawFilledCircle(220, 150 , 5, DIGITO_ENCENDIDO);
 
     gpio_config_t io_conf_int = {};
     io_conf_int.pin_bit_mask =
@@ -201,10 +195,8 @@ void app_main (void){
 
 
     xTaskCreate(Parpadeo_led_verde,"Parpadeo_led",2*configMINIMAL_STACK_SIZE,NULL,tskIDLE_PRIORITY + 1,NULL);
-    xTaskCreate(Chequeo_botones,"Chequeo",3*configMINIMAL_STACK_SIZE,NULL,tskIDLE_PRIORITY + 1,NULL);
-    xTaskCreate(Contador,"Counter_seg",configMINIMAL_STACK_SIZE,(void*)&Control_temporal[1],tskIDLE_PRIORITY + 2,NULL);
-    xTaskCreate(Contador,"Counter_dec",configMINIMAL_STACK_SIZE,(void*)&Control_temporal[2],tskIDLE_PRIORITY + 2,NULL);
-    xTaskCreate(Actualizar_pantalla,"Actualizar_pantalla_dec",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal[2],tskIDLE_PRIORITY + 1,NULL);
-    xTaskCreate(Actualizar_pantalla,"Actualizar_pantalla_seg",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal[1],tskIDLE_PRIORITY + 1,NULL);
+    xTaskCreate(Chequeo_botones,"Chequeo",3*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 1,NULL);
+    xTaskCreate(Contador,"Counter_seg",configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 2,NULL);
+    xTaskCreate(Actualizar_pantalla,"Actualizar_pantalla_dec",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 1,NULL);
 
     }
