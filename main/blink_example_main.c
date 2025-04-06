@@ -104,11 +104,8 @@ static void Contador (void *parameters){
     // const TickType_t Periodo =  parametros->Delay;
     // Tiempo_inicial = xTaskGetTickCount();
     while(1){
-        //Este take es para impedir que la pantalla y el contador estén manejando al mismo tiempo 
-        //un mismo parámetro. Por ejemplo, para actualizar la pantalla, requiere de leer el dato, por 
-        //lo cual, si lo lee y despues lo actualiza, va a estar desincronizado, debería ser al revés, primero 
-        //sumarlo o actualizarlo al valor correspondiente y despues llevarlo a la pantalla. PAra ello, se utiliza
-        //el semáforo.
+        //Prueba para cambios de github
+
         if (Estado_global){
             vTaskDelay(parametros->Delay/portTICK_PERIOD_MS);
             xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
