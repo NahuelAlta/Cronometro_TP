@@ -1,0 +1,13 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.espIdfPathWin": "C:\\Users\\Bangho\\esp\\v5.4\\esp-idf",
+    "idf.pythonInstallPath": "c:\\Users\\Bangho\\ESP32_Espressif\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+    "idf.openOcdConfigs": [
+        "board/esp32c3-builtin.cfg"
+    ],
+    "idf.portWin": "COM9",
+    "idf.toolsPathWin": "c:\\Users\\Bangho\\ESP32_Espressif\\.espressif",
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32c3"
+    }
+}
