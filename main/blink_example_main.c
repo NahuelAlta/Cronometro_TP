@@ -154,22 +154,19 @@ static void Actualizar_pantalla(void *parameters){
 }
 
 void app_main (void){
-    // Estos semáforos van a ser necesario cuando necesite actualizar la pantalla
     SemaphoreHandle_t  Semaforo_global; // La idea es que este semaforo represente las variables de minuto,segundo,
     //décima y el estado global.
     Semaforo_global    =xSemaphoreCreateMutex();
     static struct Cronometro_s Control_temporal;  
     Control_temporal.Semaforo=Semaforo_global;
+
     ILI9341Init();
     ILI9341Rotate(ILI9341_Landscape_1);
-    #define TAG "Hola"
-    ESP_LOGI(TAG,"Hasta aca todo bien");
+
     Control_temporal.panel_lcd_min=CrearPanel(10, 60, 1, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
-    ESP_LOGI(TAG,"Panel 1");
     Control_temporal.panel_lcd_seg=CrearPanel(90, 60, 2, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
-    ESP_LOGI(TAG,"Panel 2");
     Control_temporal.panel_lcd_dec=CrearPanel(230, 60, 1, DIGITO_ALTO, DIGITO_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
-    ESP_LOGI(TAG,"Hasta aca tambien");
+   
     DibujarDigito(Control_temporal.panel_lcd_dec, 0, 0);
     DibujarDigito(Control_temporal.panel_lcd_seg, 0, 0);
     DibujarDigito(Control_temporal.panel_lcd_seg, 1, 0);
