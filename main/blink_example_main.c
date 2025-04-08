@@ -141,7 +141,6 @@ static void Actualizar_pantalla(void *parameters){
                 Minutos_prev=Minutos;
                 DibujarDigito(parametros->panel_lcd_min, 0, Minutos);  
             }
-                      
         }
         else{
             xSemaphoreGive(parametros->Global_Conteo);
