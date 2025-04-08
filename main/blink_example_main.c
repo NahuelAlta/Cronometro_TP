@@ -59,8 +59,8 @@ static void Chequeo_botones (void *parameters){
     while(1){
         if (gpio_get_level(BOTON_TC0)==0){
             vTaskDelay(50/portTICK_PERIOD_MS);
-            if (gpio_get_level(BOTON_TC0)==0 ){
-                xSemaphoreTake(parametros->Semaforo_g,portMAX_DELAY);
+            while(!gpio_get_level(BOTON_TC0)){}
+            xSemaphoreTake(parametros->Semaforo_g,portMAX_DELAY);
                 switch(Estado_global){
                     case Parado:
                     Estado_global = Corriendo;
@@ -74,21 +74,16 @@ static void Chequeo_botones (void *parameters){
                     gpio_set_level(LED_ROJO,1);
                     break;                    
                 }
-            }
-            while(!gpio_get_level(BOTON_TC0)){} //esto con la idea de que si uno
-            //mantiene apretado el botón no vuelva a entrar a la interrupción. Como
-            //todavía NO (NO) vimos eventos, creo que es la mejor forma de evitar ello :). 
-            vTaskDelay(50/portTICK_PERIOD_MS);
         }
         else if (gpio_get_level(BOTON_TC1)==0){
             vTaskDelay(50/portTICK_PERIOD_MS);
+            while(!gpio_get_level(BOTON_TC1)){}
             xSemaphoreTake(parametros->Semaforo_g,portMAX_DELAY);
             if ((gpio_get_level(BOTON_TC1)==0) && Estado_global==Parado){
                 Conteo = 0;
             }
             xSemaphoreGive(parametros->Semaforo_g);
-            while(!gpio_get_level(BOTON_TC1)){}
-            vTaskDelay(50/portTICK_PERIOD_MS);
+
         }
         else if (gpio_get_level(BOTON_TC2)==0){
             if (gpio_get_level(BOTON_TC2)==0){
@@ -188,7 +183,7 @@ void app_main (void){
 
     xTaskCreate(Parpadeo_led_verde,"Parpadeo_led",2*configMINIMAL_STACK_SIZE,NULL,tskIDLE_PRIORITY + 1,NULL);
     xTaskCreate(Chequeo_botones,"Chequeo",3*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 1,NULL);
-    xTaskCreate(Contador,"Counter_seg",configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 2,NULL);
-    xTaskCreate(Actualizar_pantalla,"Actualizar_pantalla_dec",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 1,NULL);
+    xTaskCreate(Contador,"Counter_seg",configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 3,NULL);
+    xTaskCreate(Actualizar_pantalla,"Actualizar_pantalla_dec",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY + 2,NULL);
 
     }
