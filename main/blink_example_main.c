@@ -33,6 +33,7 @@ uint8_t Estado_global = Parado;
 
 typedef struct Cronometro_s {
     SemaphoreHandle_t Semaforo;
+    SemaphoreHandle_t Semaforo_g;
     panel_t panel_lcd_dec;
     panel_t panel_lcd_min;
     panel_t panel_lcd_seg;
@@ -59,16 +60,16 @@ static void Chequeo_botones (void *parameters){
         if (gpio_get_level(BOTON_TC0)==0){
             vTaskDelay(50/portTICK_PERIOD_MS);
             if (gpio_get_level(BOTON_TC0)==0 ){
-                xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
+                xSemaphoreTake(parametros->Semaforo_g,portMAX_DELAY);
                 switch(Estado_global){
                     case Parado:
                     Estado_global = Corriendo;
-                    xSemaphoreGive(parametros->Semaforo);
+                    xSemaphoreGive(parametros->Semaforo_g);
                     gpio_set_level(LED_ROJO,0);
                     break;
                     case Corriendo:
                     Estado_global = Parado;
-                    xSemaphoreGive(parametros->Semaforo);
+                    xSemaphoreGive(parametros->Semaforo_g);
                     gpio_set_level(LED_VERDE,0);
                     gpio_set_level(LED_ROJO,1);
                     break;                    
@@ -81,14 +82,11 @@ static void Chequeo_botones (void *parameters){
         }
         else if (gpio_get_level(BOTON_TC1)==0){
             vTaskDelay(50/portTICK_PERIOD_MS);
-            xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
+            xSemaphoreTake(parametros->Semaforo_g,portMAX_DELAY);
             if ((gpio_get_level(BOTON_TC1)==0) && Estado_global==Parado){
-                Minutos = 0;
-                Segundos = 0;
-                Decimas = 0;
                 Conteo = 0;
             }
-            xSemaphoreGive(parametros->Semaforo);
+            xSemaphoreGive(parametros->Semaforo_g);
             while(!gpio_get_level(BOTON_TC1)){}
             vTaskDelay(50/portTICK_PERIOD_MS);
         }
@@ -108,17 +106,16 @@ static void Contador (void *parameters){
     static TickType_t Tiempo_inicial = 0;
     Tiempo_inicial = xTaskGetTickCount();
     while(1){
-        xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
+        xSemaphoreTake(parametros->Semaforo_g,portMAX_DELAY);
         if (Estado_global){
+            xSemaphoreGive(parametros->Semaforo_g);
+            xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
             Conteo+=1;
-            Decimas=Conteo%10;
-            Segundos=Conteo/10;
-            Minutos=Segundos/60;
             xSemaphoreGive(parametros->Semaforo);
             vTaskDelayUntil(&Tiempo_inicial,pdMS_TO_TICKS(100));
         }
         else{
-            xSemaphoreGive(parametros->Semaforo);
+            xSemaphoreGive(parametros->Semaforo_g);
             vTaskDelayUntil(&Tiempo_inicial,pdMS_TO_TICKS(100));
         }
     }
@@ -126,39 +123,37 @@ static void Contador (void *parameters){
 
 static void Actualizar_pantalla(void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
-    static uint16_t Decimas_prev=0;
-    static uint16_t Segundos_prev=0;
-    static uint16_t Minutos_prev=0;
+    static uint16_t Conteo_previo=0;
     while(1){
         xSemaphoreTake(parametros->Semaforo,portMAX_DELAY);
-        if (Decimas_prev != Decimas){
-            Decimas_prev=Decimas;
-            DibujarDigito(parametros->panel_lcd_dec, 0, Decimas_prev);
-        }
-        if (Segundos_prev != Segundos){
-            Segundos_prev=Segundos;
-            uint8_t decena_seg=(Segundos_prev%60)/10;
-            uint8_t unidad_seg=(Segundos_prev%60)%10;
+        if (Conteo_previo!=Conteo){
+            Conteo_previo=Conteo;
+            xSemaphoreGive(parametros->Semaforo);
+            Decimas=Conteo%10;
+            Segundos=Conteo/10;
+            Minutos=Segundos/60;
+            DibujarDigito(parametros->panel_lcd_dec, 0, Decimas);
+            uint8_t decena_seg=(Segundos%60)/10;
+            uint8_t unidad_seg=(Segundos%60)%10;
             DibujarDigito(parametros->panel_lcd_seg, 0, decena_seg);
             DibujarDigito(parametros->panel_lcd_seg, 1, unidad_seg);
+            DibujarDigito(parametros->panel_lcd_min, 0, Minutos);            
         }
-        if (Minutos_prev != Minutos){
-            Minutos_prev=Minutos;
-            DibujarDigito(parametros->panel_lcd_min, 0, Minutos_prev);
+        else{
+            xSemaphoreGive(parametros->Semaforo);
         }
-        xSemaphoreGive(parametros->Semaforo);
         vTaskDelay(50/portTICK_PERIOD_MS);
         }
-        
-  //  }
 }
 
 void app_main (void){
-    SemaphoreHandle_t  Semaforo_global; // La idea es que este semaforo represente las variables de minuto,segundo,
-    //décima y el estado global.
+    SemaphoreHandle_t  Semaforo_global; 
+    SemaphoreHandle_t Semaforo_estado;
     Semaforo_global    =xSemaphoreCreateMutex();
+    Semaforo_estado    =xSemaphoreCreateMutex();
     static struct Cronometro_s Control_temporal;  
-    Control_temporal.Semaforo=Semaforo_global;
+    Control_temporal.Semaforo=Semaforo_global; //Hace referencia a la variable de Conteo. Actualizado en la task de "Contador"
+    Control_temporal.Semaforo_g=Semaforo_estado; //Hace referencia a la variable Estado, Corriendo o Parado
 
     ILI9341Init();
     ILI9341Rotate(ILI9341_Landscape_1);
