@@ -24,9 +24,6 @@
 #define DIGITO_APAGADO   0x3800
 #define DIGITO_FONDO     ILI9341_BLACK
 
-uint32_t Minutos = 0;
-uint32_t Segundos = 0;
-uint32_t Decimas = 0;
 uint32_t Conteo = 0;
 
 uint8_t Estado_global = Parado;
@@ -119,6 +116,11 @@ static void Contador (void *parameters){
 static void Actualizar_pantalla(void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
     static uint16_t Conteo_previo=0;
+    static uint32_t Minutos = 0;
+    static uint32_t Segundos = 0;
+    static uint32_t Decimas = 0;
+    static uint32_t Minutos_prev = 0;
+    static uint32_t Segundos_prev = 0;
     while(1){
         xSemaphoreTake(parametros->Global_Conteo,portMAX_DELAY);
         if (Conteo_previo!=Conteo){
@@ -126,13 +128,20 @@ static void Actualizar_pantalla(void *parameters){
             xSemaphoreGive(parametros->Global_Conteo);
             Decimas=Conteo%10;
             Segundos=Conteo/10;
-            Minutos=Segundos/60;
+            Minutos=Segundos/60; 
             DibujarDigito(parametros->panel_lcd_dec, 0, Decimas);
-            uint8_t decena_seg=(Segundos%60)/10;
-            uint8_t unidad_seg=(Segundos%60)%10;
-            DibujarDigito(parametros->panel_lcd_seg, 0, decena_seg);
-            DibujarDigito(parametros->panel_lcd_seg, 1, unidad_seg);
-            DibujarDigito(parametros->panel_lcd_min, 0, Minutos);            
+            if (Segundos_prev!=Segundos){
+                Segundos_prev=Segundos;
+                uint8_t decena_seg=(Segundos%60)/10;
+                uint8_t unidad_seg=(Segundos%60)%10;
+                DibujarDigito(parametros->panel_lcd_seg, 0, decena_seg);
+                DibujarDigito(parametros->panel_lcd_seg, 1, unidad_seg);
+            }
+            if (Minutos_prev!=Minutos){
+                Minutos_prev=Minutos;
+                DibujarDigito(parametros->panel_lcd_min, 0, Minutos);  
+            }
+                      
         }
         else{
             xSemaphoreGive(parametros->Global_Conteo);
