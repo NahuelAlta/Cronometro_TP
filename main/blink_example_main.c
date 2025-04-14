@@ -48,7 +48,7 @@ uint8_t Estado_Global=0;
 typedef struct Cronometro_s {
     SemaphoreHandle_t Semáforo_variable; //Va a controlar el acceso a la variable de Estado_global
     SemaphoreHandle_t Semaforo_Estado_G;
-    SemaphoreHandle_t Semaforo_UART;
+    SemaphoreHandle_t Semaforo_SPI;
     SemaphoreHandle_t Semáforo_dec;
     SemaphoreHandle_t Semáforo_seg;
     SemaphoreHandle_t Semáforo_min;
@@ -56,11 +56,21 @@ typedef struct Cronometro_s {
     panel_t Panel_seg;
     panel_t Panel_min;
     EventGroupHandle_t Eventos_task;
+    QueueHandle_t Cola_lap;
 }* Cronometro_t;
 
+typedef struct Panel_Lap_s {
+    panel_t Minutos_panel;
+    panel_t Segundos_panel;
+    panel_t Decimas_panel;
+} Lap_panel;
+
 typedef struct Pantalla_Lap_s {
-    panel_t Panel_lap1;
-    panel_t Panel_lap2;
+    Lap_panel     panel_1;
+    Lap_panel     panel_2;
+    QueueHandle_t Cola_lap;
+    EventGroupHandle_t Eventos_task;
+    SemaphoreHandle_t Semaforo_SPI;
 } *Pantalla_Lap_t;
 
 void Testeo_Botones(void *args){
@@ -133,6 +143,7 @@ static void Start_Stop_Cronometro (void *parameters){
         }
     }
 }
+
 static void Reset_Cronometro (void *parameters){
     Cronometro_t Estructura = (Cronometro_t) parameters;
     EventBits_t Bits_return = 0;
@@ -158,16 +169,57 @@ static void Reset_Cronometro (void *parameters){
     }
 }
 
-// static void Obtener_Lap (void *parameters){
-//     Cronometro_t Estructura = (Cronometro_t) parameters;
-//     EventBits_t Bits_return = 0;
-//     while(1){
-//         Bits_return = xEventGroupWaitBits(Estructura->Eventos_task,
-//                             Interrupcion_TC2,
-//                             pdTRUE,
-//                             pdFALSE,
-//                             portMAX_DELAY);
-//         if ((Bits_return & Interrupcion_TC2) == Interrupcion_TC2) {
+static void Obtener_Lap (void *parameters){
+    Cronometro_t Estructura = (Cronometro_t) parameters;
+    uint32_t Lap_contador = 0;
+    while(1){
+        xEventGroupWaitBits(Estructura->Eventos_task,
+                            Interrupcion_TC2,
+                            pdTRUE,
+                            pdFALSE,
+                            portMAX_DELAY);
+        xSemaphoreTake(Estructura->Semáforo_variable,portMAX_DELAY);
+        Lap_contador=Conteo;
+        xSemaphoreGive(Estructura->Semáforo_variable);
+        xQueueSend(Estructura->Cola_lap,(void *)&Lap_contador,portMAX_DELAY);
+    }
+}
+
+static void Mostrar_Lap (void *parameters){
+    Pantalla_Lap_t Estructura = (Pantalla_Lap_t) parameters;
+    static uint32_t minutos=0;
+    static uint32_t segundos=0;
+    static uint32_t decimas=0;
+    static uint32_t panel_n = 0;
+    static uint32_t Buffer_dato = 0;
+    static Lap_panel Panel;
+    while(1){
+        xQueueReceive(Estructura->Cola_lap, &Buffer_dato, portMAX_DELAY);
+        decimas = Buffer_dato%10;
+        segundos = (Buffer_dato/10)%60;
+        minutos = Buffer_dato/600;
+        if (!panel_n){
+            Panel = Estructura->panel_1;
+            xSemaphoreTake(Estructura->Semaforo_SPI,portMAX_DELAY);
+            ILI9341DrawFilledCircle(135,156,2,ILI9341_RED);
+            ILI9341DrawFilledCircle(195,156,2,ILI9341_RED);
+        }
+        else{
+            Panel = Estructura->panel_2;
+            xSemaphoreTake(Estructura->Semaforo_SPI,portMAX_DELAY);
+            ILI9341DrawFilledCircle(135,226,2,ILI9341_RED);
+            ILI9341DrawFilledCircle(195,226,2,ILI9341_RED);
+        }
+        DibujarDigito(Panel.Decimas_panel,0,decimas);
+        DibujarDigito(Panel.Decimas_panel,0,decimas);
+        DibujarDigito(Panel.Segundos_panel,0,segundos/10);
+        DibujarDigito(Panel.Segundos_panel,1,segundos%10);
+        DibujarDigito(Panel.Minutos_panel,0,minutos/10);
+        DibujarDigito(Panel.Minutos_panel,1,minutos%10);
+        panel_n^=1;
+        xSemaphoreGive(Estructura->Semaforo_SPI);   
+    }
+}
 
 static void Contador (void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
@@ -246,9 +298,9 @@ void Actualizar_pantalla_dec (void *parameters){
             xSemaphoreTake(parametros->Semáforo_dec,portMAX_DELAY);
             Decena = Decimas%10;
             xSemaphoreGive(parametros->Semáforo_dec);
-            xSemaphoreTake(parametros->Semaforo_UART,portMAX_DELAY);
+            xSemaphoreTake(parametros->Semaforo_SPI,portMAX_DELAY);
             DibujarDigito(parametros->Panel_dec,0,Decena);
-            xSemaphoreGive(parametros->Semaforo_UART);
+            xSemaphoreGive(parametros->Semaforo_SPI);
 
     }
 }
@@ -268,10 +320,10 @@ void Actualizar_pantalla_seg (void *parameters){
             Unidad = Segundos%10;
             Decena = Segundos/10;
             xSemaphoreGive(parametros->Semáforo_seg);
-            xSemaphoreTake(parametros->Semaforo_UART,portMAX_DELAY);
+            xSemaphoreTake(parametros->Semaforo_SPI,portMAX_DELAY);
             DibujarDigito(parametros->Panel_seg,0,Decena);
             DibujarDigito(parametros->Panel_seg,1,Unidad);
-            xSemaphoreGive(parametros->Semaforo_UART);
+            xSemaphoreGive(parametros->Semaforo_SPI);
         
     }
 }
@@ -291,10 +343,10 @@ void Actualizar_pantalla_min (void *parameters){
             Decena = Minutos/10;
             Unidad = Minutos%10;
             xSemaphoreGive(parametros->Semáforo_min);
-            xSemaphoreTake(parametros->Semaforo_UART,portMAX_DELAY);
+            xSemaphoreTake(parametros->Semaforo_SPI,portMAX_DELAY);
             DibujarDigito(parametros->Panel_min,0,Decena);
             DibujarDigito(parametros->Panel_min,1,Unidad);
-            xSemaphoreGive(parametros->Semaforo_UART);
+            xSemaphoreGive(parametros->Semaforo_SPI);
         
     }
 }
@@ -305,26 +357,30 @@ void app_main (void){
     SemaphoreHandle_t  Semaforo_Minutos; 
     SemaphoreHandle_t  Semaforo_Estado_Cronometro;
     SemaphoreHandle_t  Semaforo_Conteo_Global;
-    SemaphoreHandle_t  Periférico_UART;
+    SemaphoreHandle_t  Periférico_SPI;
 
     Semaforo_Decimas                =xSemaphoreCreateMutex();
     Semaforo_Segundos               =xSemaphoreCreateMutex();
     Semaforo_Minutos                =xSemaphoreCreateMutex();
     Semaforo_Estado_Cronometro      =xSemaphoreCreateMutex();
     Semaforo_Conteo_Global          =xSemaphoreCreateMutex();
-    Periférico_UART                 =xSemaphoreCreateMutex();
+    Periférico_SPI                 =xSemaphoreCreateMutex();
 
     EventGroupHandle_t Grupo_eventos;
     Grupo_eventos = xEventGroupCreate();
     static struct Cronometro_s Control_temporal;
+
+    QueueHandle_t Cronometro_lap;
+    Cronometro_lap = xQueueCreate(2,sizeof(uint32_t));
     
     Control_temporal.Eventos_task=Grupo_eventos;
     Control_temporal.Semaforo_Estado_G=Semaforo_Estado_Cronometro;
-    Control_temporal.Semaforo_UART=Periférico_UART;
+    Control_temporal.Semaforo_SPI=Periférico_SPI;
     Control_temporal.Semáforo_dec=Semaforo_Decimas;
     Control_temporal.Semáforo_seg=Semaforo_Segundos;
     Control_temporal.Semáforo_min=Semaforo_Minutos;
     Control_temporal.Semáforo_variable=Semaforo_Conteo_Global;
+    Control_temporal.Cola_lap=Cronometro_lap;
     
     ILI9341Init();
     ILI9341Rotate(ILI9341_Landscape_1);
@@ -341,7 +397,19 @@ void app_main (void){
     ILI9341DrawFilledCircle(130, 80, 5, DIGITO_ENCENDIDO);
     ILI9341DrawFilledCircle(230, 80, 5, DIGITO_ENCENDIDO);
     
+    static struct Pantalla_Lap_s Estructura_vueltas;
+    Estructura_vueltas.Cola_lap=Cronometro_lap;
+    Estructura_vueltas.Semaforo_SPI=Periférico_SPI;
+    Estructura_vueltas.Eventos_task=Grupo_eventos;
 
+    Estructura_vueltas.panel_1.Decimas_panel=CrearPanel(200, 110, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    Estructura_vueltas.panel_1.Segundos_panel=CrearPanel(140, 110, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    Estructura_vueltas.panel_1.Minutos_panel=CrearPanel(80, 110, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+
+    Estructura_vueltas.panel_2.Decimas_panel=CrearPanel(200, 180, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    Estructura_vueltas.panel_2.Segundos_panel=CrearPanel(140, 180, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+    Estructura_vueltas.panel_2.Minutos_panel=CrearPanel(80, 180, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
+   
     gpio_config_t io_conf_int = {};
     io_conf_int.pin_bit_mask =
         ((1ULL << BOTON_TC0) | (1ULL << BOTON_TC1) | (1ULL << BOTON_TC2));
@@ -359,6 +427,7 @@ void app_main (void){
     gpio_config(&io_conf_int2);
 
 
+
     xTaskCreate(Parpadeo_led_verde,NULL,6*configMINIMAL_STACK_SIZE,NULL,tskIDLE_PRIORITY+2,NULL);
     xTaskCreate(Testeo_Botones,NULL,6*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY+2,NULL);
     xTaskCreate(Start_Stop_Cronometro,NULL,6*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY+2,NULL);
@@ -368,5 +437,7 @@ void app_main (void){
     xTaskCreate(Actualizar_pantalla_dec,"Actualizar_pantalla_dec",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY+2,NULL);
     xTaskCreate(Actualizar_pantalla_seg,"Actualizar_pantalla_seg",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY+2,NULL);
     xTaskCreate(Actualizar_pantalla_min,"Actualizar_pantalla_min",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY+2,NULL);
+    xTaskCreate(Mostrar_Lap,"Actualizar_pantalla_min",16*configMINIMAL_STACK_SIZE,(void*)&Estructura_vueltas,tskIDLE_PRIORITY+2,NULL);
+    xTaskCreate(Obtener_Lap,"Actualizar_pantalla_min",16*configMINIMAL_STACK_SIZE,(void*)&Control_temporal,tskIDLE_PRIORITY+2,NULL);
 
 }
