@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "Cronometro_TP",
-    "project_version":    "be83536-dirty",
+    "project_version":    "bd905dd-dirty",
     "project_path":       "C:/Users/Bangho/ESP_Proyectos/Cronometro_TP",
     "idf_path":           "C:/Users/Bangho/esp/v5.4/esp-idf",
     "build_dir":          "C:/Users/Bangho/ESP_Proyectos/Cronometro_TP/build",
