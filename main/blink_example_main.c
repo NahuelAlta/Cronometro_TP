@@ -73,7 +73,7 @@ typedef struct Pantalla_Lap_s {
     SemaphoreHandle_t Semaforo_SPI;
 } *Pantalla_Lap_t;
 
-void Testeo_Botones(void *args){
+static void Testeo_Botones(void *args){
     Cronometro_t Evento = (Cronometro_t) args;
     while(1){
         if (!gpio_get_level(BOTON_TC0))
