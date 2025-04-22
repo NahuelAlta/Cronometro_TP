@@ -39,23 +39,19 @@
 #define DIGITO_FONDO     ILI9341_BLACK
 
 uint32_t Conteo = 0;
-uint32_t Decimas=0;
-uint32_t Segundos=0;
-uint32_t Minutos=0;
-
 uint8_t Estado_Global=0;
 
 typedef struct Cronometro_s {
-    SemaphoreHandle_t Semáforo_variable; //Va a controlar el acceso a la variable de Estado_global
+    SemaphoreHandle_t Semáforo_variable; 
     SemaphoreHandle_t Semaforo_Estado_G;
     SemaphoreHandle_t Semaforo_SPI;
-    SemaphoreHandle_t Semáforo_dec;
-    SemaphoreHandle_t Semáforo_seg;
-    SemaphoreHandle_t Semáforo_min;
     panel_t Panel_dec;
     panel_t Panel_seg;
     panel_t Panel_min;
     EventGroupHandle_t Eventos_task;
+    QueueHandle_t Queue_dec;
+    QueueHandle_t Queue_seg;
+    QueueHandle_t Queue_min;
     QueueHandle_t Cola_lap;
 }* Cronometro_t;
 
@@ -254,6 +250,9 @@ static void Actualizar_valores(void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
     static uint32_t Conteo_local = 0;
     EventBits_t Bits_Evento = 0;
+    static uint32_t Decimas=0;
+    static uint32_t Segundos=0;
+    static uint32_t Minutos=0;
     while(1){
         Bits_Evento = xEventGroupWaitBits(
             parametros->Eventos_task,    
@@ -265,22 +264,19 @@ static void Actualizar_valores(void *parameters){
         Conteo_local = Conteo;
         xSemaphoreGive(parametros->Semáforo_variable);
         if ((Bits_Evento & Cambio_dec) != 0){
-            xSemaphoreTake(parametros->Semáforo_dec,portMAX_DELAY);
             Decimas = Conteo_local%10;
-            xSemaphoreGive(parametros->Semáforo_dec);
             xEventGroupSetBits(parametros->Eventos_task,Pantalla_dec);
+            xQueueSend(parametros->Queue_dec,(void *)&Decimas,portMAX_DELAY);
         }
         if ((Bits_Evento & Cambio_seg) != 0){
-            xSemaphoreTake(parametros->Semáforo_seg,portMAX_DELAY);
             Segundos = (Conteo_local/10)%60;
-            xSemaphoreGive(parametros->Semáforo_seg);
             xEventGroupSetBits(parametros->Eventos_task,Pantalla_seg);
+            xQueueSend(parametros->Queue_seg,(void *)&Segundos,portMAX_DELAY);
         }
         if ((Bits_Evento & Cambio_min) != 0){
-            xSemaphoreTake(parametros->Semáforo_min,portMAX_DELAY);
             Minutos = Conteo_local/600;
-            xSemaphoreGive(parametros->Semáforo_min);
             xEventGroupSetBits(parametros->Eventos_task,Pantalla_min);
+            xQueueSend(parametros->Queue_min,(void *)&Minutos,portMAX_DELAY);
         }
     }
 }
@@ -288,6 +284,7 @@ static void Actualizar_valores(void *parameters){
 void Actualizar_pantalla_dec (void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
     static uint8_t Decena = 0;
+    static uint32_t Decimas_local=0;
     while(1){
             xEventGroupWaitBits(
             parametros->Eventos_task,    
@@ -295,9 +292,8 @@ void Actualizar_pantalla_dec (void *parameters){
             pdTRUE,         
             pdFALSE,
             portMAX_DELAY);
-            xSemaphoreTake(parametros->Semáforo_dec,portMAX_DELAY);
-            Decena = Decimas%10;
-            xSemaphoreGive(parametros->Semáforo_dec);
+            xQueueReceive(parametros->Queue_dec,(void *)&Decimas_local,portMAX_DELAY);
+            Decena = Decimas_local%10;
             xSemaphoreTake(parametros->Semaforo_SPI,portMAX_DELAY);
             DibujarDigito(parametros->Panel_dec,0,Decena);
             xSemaphoreGive(parametros->Semaforo_SPI);
@@ -309,6 +305,7 @@ void Actualizar_pantalla_seg (void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
     static uint8_t Unidad = 0;
     static uint8_t Decena = 0;
+    static uint32_t Segundos_local = 0;
     while(1){
         xEventGroupWaitBits(
             parametros->Eventos_task,    
@@ -316,10 +313,9 @@ void Actualizar_pantalla_seg (void *parameters){
             pdTRUE,         
             pdFALSE,        
             portMAX_DELAY);
-            xSemaphoreTake(parametros->Semáforo_seg,portMAX_DELAY);
-            Unidad = Segundos%10;
-            Decena = Segundos/10;
-            xSemaphoreGive(parametros->Semáforo_seg);
+            xQueueReceive(parametros->Queue_seg,(void *)&Segundos_local,portMAX_DELAY);
+            Unidad = Segundos_local%10;
+            Decena = Segundos_local/10;
             xSemaphoreTake(parametros->Semaforo_SPI,portMAX_DELAY);
             DibujarDigito(parametros->Panel_seg,0,Decena);
             DibujarDigito(parametros->Panel_seg,1,Unidad);
@@ -332,6 +328,7 @@ void Actualizar_pantalla_min (void *parameters){
     Cronometro_t parametros = (Cronometro_t) parameters;
     static uint8_t Unidad = 0;
     static uint8_t Decena = 0;
+    static uint32_t Minutos_local = 0;
     while(1){
         xEventGroupWaitBits(
             parametros->Eventos_task,    
@@ -339,10 +336,9 @@ void Actualizar_pantalla_min (void *parameters){
             pdTRUE,         
             pdFALSE,        
             portMAX_DELAY);
-            xSemaphoreTake(parametros->Semáforo_min,portMAX_DELAY);
-            Decena = Minutos/10;
-            Unidad = Minutos%10;
-            xSemaphoreGive(parametros->Semáforo_min);
+            xQueueReceive(parametros->Queue_min,(void *)&Minutos_local,portMAX_DELAY);
+            Decena = Minutos_local/10;
+            Unidad = Minutos_local%10;
             xSemaphoreTake(parametros->Semaforo_SPI,portMAX_DELAY);
             DibujarDigito(parametros->Panel_min,0,Decena);
             DibujarDigito(parametros->Panel_min,1,Unidad);
@@ -352,16 +348,16 @@ void Actualizar_pantalla_min (void *parameters){
 }
 
 void app_main (void){
-    SemaphoreHandle_t  Semaforo_Decimas; 
-    SemaphoreHandle_t  Semaforo_Segundos; 
-    SemaphoreHandle_t  Semaforo_Minutos; 
+    QueueHandle_t  Queue_Decimas; 
+    QueueHandle_t  Queue_Segundos; 
+    QueueHandle_t  Queue_Minutos; 
     SemaphoreHandle_t  Semaforo_Estado_Cronometro;
     SemaphoreHandle_t  Semaforo_Conteo_Global;
     SemaphoreHandle_t  Periférico_SPI;
 
-    Semaforo_Decimas                =xSemaphoreCreateMutex();
-    Semaforo_Segundos               =xSemaphoreCreateMutex();
-    Semaforo_Minutos                =xSemaphoreCreateMutex();
+    Queue_Decimas                =xQueueCreate(1,sizeof(uint32_t));
+    Queue_Segundos               =xQueueCreate(1,sizeof(uint32_t));
+    Queue_Minutos                =xQueueCreate(1,sizeof(uint32_t));
     Semaforo_Estado_Cronometro      =xSemaphoreCreateMutex();
     Semaforo_Conteo_Global          =xSemaphoreCreateMutex();
     Periférico_SPI                 =xSemaphoreCreateMutex();
@@ -376,9 +372,9 @@ void app_main (void){
     Control_temporal.Eventos_task=Grupo_eventos;
     Control_temporal.Semaforo_Estado_G=Semaforo_Estado_Cronometro;
     Control_temporal.Semaforo_SPI=Periférico_SPI;
-    Control_temporal.Semáforo_dec=Semaforo_Decimas;
-    Control_temporal.Semáforo_seg=Semaforo_Segundos;
-    Control_temporal.Semáforo_min=Semaforo_Minutos;
+    Control_temporal.Queue_dec=Queue_Decimas;
+    Control_temporal.Queue_min=Queue_Minutos;
+    Control_temporal.Queue_seg=Queue_Segundos;
     Control_temporal.Semáforo_variable=Semaforo_Conteo_Global;
     Control_temporal.Cola_lap=Cronometro_lap;
     
