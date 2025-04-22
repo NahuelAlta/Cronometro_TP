@@ -358,9 +358,9 @@ void app_main (void){
     Queue_Decimas                =xQueueCreate(1,sizeof(uint32_t));
     Queue_Segundos               =xQueueCreate(1,sizeof(uint32_t));
     Queue_Minutos                =xQueueCreate(1,sizeof(uint32_t));
-    Semaforo_Estado_Cronometro      =xSemaphoreCreateMutex();
-    Semaforo_Conteo_Global          =xSemaphoreCreateMutex();
-    Periférico_SPI                 =xSemaphoreCreateMutex();
+    Semaforo_Estado_Cronometro   =xSemaphoreCreateMutex();
+    Semaforo_Conteo_Global       =xSemaphoreCreateMutex();
+    Periférico_SPI               =xSemaphoreCreateMutex();
 
     EventGroupHandle_t Grupo_eventos;
     Grupo_eventos = xEventGroupCreate();
