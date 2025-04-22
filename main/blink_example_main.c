@@ -370,12 +370,13 @@ void app_main (void){
     Cronometro_lap = xQueueCreate(2,sizeof(uint32_t));
     
     Control_temporal.Eventos_task=Grupo_eventos;
-    Control_temporal.Semaforo_Estado_G=Semaforo_Estado_Cronometro;
+    Control_temporal.Semaforo_Estado_G=Semaforo_Estado_Cronometro; // Si está corriendo o esta parado
     Control_temporal.Semaforo_SPI=Periférico_SPI;
     Control_temporal.Queue_dec=Queue_Decimas;
     Control_temporal.Queue_min=Queue_Minutos;
     Control_temporal.Queue_seg=Queue_Segundos;
-    Control_temporal.Semáforo_variable=Semaforo_Conteo_Global;
+    Control_temporal.Semáforo_variable=Semaforo_Conteo_Global; //La variable conteo es global para poder acceder a la misma 
+    //a traves de la funcion de "Contador" como para resetar el cronometro a través de la task "Reset_Cronometro"
     Control_temporal.Cola_lap=Cronometro_lap;
     
     ILI9341Init();
