@@ -229,9 +229,6 @@ static void Obtener_Lap (void *parameters){
                             pdTRUE,
                             pdFALSE,
                             portMAX_DELAY);
-        // xSemaphoreTake(Estructura->Semáforo_variable,portMAX_DELAY);
-        // Lap_contador=Conteo;
-        // xSemaphoreGive(Estructura->Semáforo_variable);
         xQueueSend(Estructura->Cola_lap,(void *)&Conteo,portMAX_DELAY);
     }
 }
@@ -341,9 +338,6 @@ static void Actualizar_valores(void *parameters){
             pdTRUE,         
             pdFALSE,        
             portMAX_DELAY);
-        // xSemaphoreTake(parametros->Semáforo_variable,portMAX_DELAY);
-        // Conteo_local = Conteo;
-        // xSemaphoreGive(parametros->Semáforo_variable);
         xQueueReceive(parametros->Variable_conteo,(void*)&Conteo_local,pdMS_TO_TICKS(50));
         if ((Bits_Evento & Cambio_dec) != 0){
             Decimas = Conteo_local%10;
@@ -448,13 +442,13 @@ void app_main (void){
     SemaphoreHandle_t  Periférico_SPI;
     //-------------------------------------------------------
     //----------- Asignación de semáforos y colas ---------//  
-    Queue_Decimas                =xQueueCreate(1,sizeof(uint32_t));
-    Queue_Segundos               =xQueueCreate(1,sizeof(uint32_t));
-    Queue_Minutos                =xQueueCreate(1,sizeof(uint32_t));
-    Queue_Conteo                 =xQueueCreate(1,sizeof(uint32_t));
-    Semaforo_Estado_Cronometro   =xSemaphoreCreateMutex();
-    Semaforo_Conteo_Global       =xSemaphoreCreateMutex();
-    Periférico_SPI               =xSemaphoreCreateMutex();
+    Queue_Decimas                =  xQueueCreate(1,sizeof(uint32_t));
+    Queue_Segundos               =  xQueueCreate(1,sizeof(uint32_t));
+    Queue_Minutos                =  xQueueCreate(1,sizeof(uint32_t));
+    Queue_Conteo                 =  xQueueCreate(1,sizeof(uint32_t));
+    Semaforo_Estado_Cronometro   =  xSemaphoreCreateMutex();
+    Semaforo_Conteo_Global       =  xSemaphoreCreateMutex();
+    Periférico_SPI               =  xSemaphoreCreateMutex();
     //---------------------------------------------------------------
     //----------- Asignación a estructura para argumentos de Task -//
     //----------------asociadas al control del cronómetro ---------//  
@@ -466,15 +460,15 @@ void app_main (void){
     QueueHandle_t Cronometro_lap;
     Cronometro_lap = xQueueCreate(2,sizeof(uint32_t));
     
-    Control_temporal.Eventos_task=      Grupo_eventos;
-    Control_temporal.Semaforo_Estado_G=     Semaforo_Estado_Cronometro; // Si está corriendo o esta parado
-    Control_temporal.Semaforo_SPI=          Periférico_SPI;
-    Control_temporal.Semáforo_variable=     Semaforo_Conteo_Global; 
-    Control_temporal.Queue_dec=         Queue_Decimas;
-    Control_temporal.Queue_min=         Queue_Minutos;
-    Control_temporal.Queue_seg=         Queue_Segundos;
-    Control_temporal.Variable_conteo=   Queue_Conteo;
-    Control_temporal.Cola_lap=          Cronometro_lap;
+    Control_temporal.Eventos_task       =   Grupo_eventos;
+    Control_temporal.Semaforo_Estado_G  =   Semaforo_Estado_Cronometro; // Si está corriendo o esta parado
+    Control_temporal.Semaforo_SPI       =   Periférico_SPI;
+    Control_temporal.Semáforo_variable  =   Semaforo_Conteo_Global; 
+    Control_temporal.Queue_dec          =   Queue_Decimas;
+    Control_temporal.Queue_min          =   Queue_Minutos;
+    Control_temporal.Queue_seg          =   Queue_Segundos;
+    Control_temporal.Variable_conteo    =   Queue_Conteo;
+    Control_temporal.Cola_lap           =   Cronometro_lap;
     //-------------------------------------------------
     //----------- Inicializacion de display ---------// 
     ILI9341Init();
@@ -497,9 +491,9 @@ void app_main (void){
     //-------------------------------------------------------------------------
     //----------- Creación de estructura para task asociadas al LAP ---------//  
     static struct Pantalla_Lap_s Estructura_vueltas;
-    Estructura_vueltas.Cola_lap=Cronometro_lap;
-    Estructura_vueltas.Semaforo_SPI=Periférico_SPI;
-    Estructura_vueltas.Eventos_task=Grupo_eventos;
+    Estructura_vueltas.Cola_lap         =   Cronometro_lap;
+    Estructura_vueltas.Semaforo_SPI     =   Periférico_SPI;
+    Estructura_vueltas.Eventos_task     =   Grupo_eventos;
     //--------------------------------------------------------
     //----------- Creacion paneles de LAP superior ---------//    
     Estructura_vueltas.panel_1.Decimas_panel=CrearPanel(200, 110, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
@@ -512,21 +506,21 @@ void app_main (void){
     Estructura_vueltas.panel_2.Minutos_panel=CrearPanel(80, 180, 2, LAP_ALTO, LAP_ANCHO, DIGITO_ENCENDIDO, DIGITO_APAGADO, DIGITO_FONDO);
     //-------------------------------------------------
     //----------- Configuracion pines boton ---------//
-    gpio_config_t io_conf_int = {};
-    io_conf_int.pin_bit_mask =
-        ((1ULL << BOTON_TC0) | (1ULL << BOTON_TC1) | (1ULL << BOTON_TC2));
-    io_conf_int.mode = GPIO_MODE_INPUT;
-    io_conf_int.pull_up_en = true;
-    io_conf_int.intr_type = GPIO_INTR_DISABLE;
+    gpio_config_t io_conf_int   = {};
+    io_conf_int.pin_bit_mask    =
+                ((1ULL << BOTON_TC0) | (1ULL << BOTON_TC1) | (1ULL << BOTON_TC2));
+    io_conf_int.mode            = GPIO_MODE_INPUT;
+    io_conf_int.pull_up_en      = true;
+    io_conf_int.intr_type       = GPIO_INTR_DISABLE;
     gpio_config(&io_conf_int);
     //------------------------------------------------
     //----------- Configuracion pines LEDS ---------//
-    gpio_config_t io_conf_int2 = {};
-    io_conf_int2.pin_bit_mask =
+    gpio_config_t io_conf_int2  = {};
+    io_conf_int2.pin_bit_mask   =
         ((1ULL << LED_ROJO) | (1ULL << LED_VERDE));
-    io_conf_int2.mode = GPIO_MODE_OUTPUT;
-    io_conf_int2.pull_up_en = false;
-    io_conf_int2.intr_type = GPIO_INTR_DISABLE;
+    io_conf_int2.mode           = GPIO_MODE_OUTPUT;
+    io_conf_int2.pull_up_en     = false;
+    io_conf_int2.intr_type      = GPIO_INTR_DISABLE;
     gpio_config(&io_conf_int2);
     //---------------------------------------
     //----------- Tarea principal ---------//
