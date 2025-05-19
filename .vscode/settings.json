@@ -12,6 +12,25 @@
     },
     "idf.flashType": "UART",
     "files.associations": {
-        "digitos.h": "c"
+        "digitos.h": "c",
+        "fonts.h": "c",
+        "ili9341.h": "c",
+        "stdio.h": "c",
+        "gpio.h": "c",
+        "freertos.h": "c",
+        "reloj.h": "c",
+        "task.h": "c",
+        "definiciones.h": "c",
+        "chrono": "c",
+        "random": "c",
+        "limits": "c",
+        "semphr.h": "c",
+        "esp_log.h": "c",
+        "cronometro.h": "c",
+        "controlgen.h": "c",
+        "spi_master.h": "c",
+        "pantalla_cronometro.h": "c",
+        "pantalla_reloj.h": "c",
+        "cstdlib": "c"
     }
 }
